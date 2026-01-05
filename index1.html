@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chatterbox – Milestone 3</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #f5f7fb;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+    }
+
+    .app {
+      width: 420px;
+      height: 90vh;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      margin-top: 20px;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #4f46e5, #6366f1);
+      color: white;
+      padding: 14px;
+      text-align: center;
+    }
+
+    .header h2 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    #room-title {
+      font-size: 13px;
+      opacity: 0.9;
+    }
+
+    .controls {
+      padding: 10px;
+      background: #f1f3ff;
+      border-bottom: 1px solid #ddd;
+    }
+
+    select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+
+    #chat {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+      background: #fafafa;
+    }
+
+    .system {
+      text-align: center;
+      font-size: 13px;
+      color: gray;
+      margin: 10px 0;
+    }
+
+    .message {
+      max-width: 75%;
+      padding: 10px 14px;
+      margin: 6px 0;
+      border-radius: 18px;
+      background: #e5e7eb;
+    }
+
+    .mine {
+      background: #dcf8c6;
+      margin-left: auto;
+      text-align: right;
+    }
+
+    #typing {
+      height: 18px;
+      font-size: 13px;
+      color: #16a34a;
+      padding-left: 12px;
+      font-style: italic;
+    }
+
+    .input-bar {
+      display: flex;
+      padding: 10px;
+      border-top: 1px solid #ddd;
+    }
+
+    .input-bar input {
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: 20px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+
+    .input-bar button {
+      margin-left: 8px;
+      padding: 10px 18px;
+      border-radius: 20px;
+      border: none;
+      background: #4f46e5;
+      color: white;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="app">
+  <div class="header">
+    <h2>Chatterbox</h2>
+    <div id="room-title"></div>
+  </div>
+
+  <div class="controls">
+    <select id="room">
+      <option value="general">General</option>
+      <option value="tech">Tech</option>
+      <option value="fun">Fun</option>
+    </select>
+  </div>
+
+  <div id="chat"></div>
+  <div id="typing"></div>
+
+  <div class="input-bar">
+    <input id="msg" placeholder="Type a message..." />
+    <button id="sendBtn">Send</button>
+  </div>
+</div>
+
+<script>
+  const chat = document.getElementById("chat");
+  const typingDiv = document.getElementById("typing");
+  const msgInput = document.getElementById("msg");
+  const roomSelect = document.getElementById("room");
+  const roomTitle = document.getElementById("room-title");
+  const sendBtn = document.getElementById("sendBtn");
+
+  const username = prompt("Enter your name:") || "Anonymous";
+  let socket = null;
+
+  function connect(room) {
+    if (socket) socket.close();
+
+    chat.innerHTML = "";
+    typingDiv.innerText = "";
+    roomTitle.innerText = "Room: " + room.toUpperCase();
+
+    socket = new WebSocket("ws://localhost:8000/ws");
+
+    socket.onopen = () => {
+      socket.send(JSON.stringify({
+        username: username,
+        room: room
+      }));
+    };
+
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === "chat") {
+        addMessage(`${data.username}: ${data.message}`);
+      }
+
+      if (data.type === "system") {
+        addMessage(data.message, true);
+      }
+
+      if (data.type === "typing") {
+        typingDiv.innerText = `${data.username} is typing...`;
+      }
+
+      if (data.type === "stop_typing") {
+        typingDiv.innerText = "";
+      }
+    };
+  }
+
+  function sendMessage() {
+    if (!msgInput.value.trim()) return;
+
+    addMessage(`You: ${msgInput.value}`, false, true);
+
+    socket.send(JSON.stringify({
+      type: "chat",
+      message: msgInput.value
+    }));
+
+    msgInput.value = "";
+    socket.send(JSON.stringify({ type: "stop_typing" }));
+  }
+
+  msgInput.addEventListener("input", () => {
+    socket.send(JSON.stringify({ type: "typing" }));
+  });
+
+  sendBtn.addEventListener("click", sendMessage);
+
+  roomSelect.addEventListener("change", () => {
+    connect(roomSelect.value);
+  });
+
+  function addMessage(text, system = false, mine = false) {
+    const div = document.createElement("div");
+
+    if (system) {
+      div.classList.add("system");
+    } else {
+      div.classList.add("message");
+      if (mine) div.classList.add("mine");
+    }
+
+    div.innerText = text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  connect(roomSelect.value);
+</script>
+
+</body>
+</html>
